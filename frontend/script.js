@@ -66,37 +66,50 @@ document.addEventListener('DOMContentLoaded', () => {
      * 검색 결과(배열)를 화면에 표시하는 함수
      * @param {Array} results - 백엔드에서 받은 결과 객체 배열
      */
-    function displayResults(results) {
-        resultDiv.style.display = 'block';
-        errorResultDiv.style.display = 'none';
+    function displayResults(results) { // Changed parameter name for clarity
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = '';
+        resultsDiv.style.display = 'block'; // Make sure the container is visible
 
-        // 1. 가장 정확한 첫 번째 결과를 메인 화면에 표시
-        displayMainResult(results[0], 1);
-
-        // 2. 전체 결과 리스트를 하단에 표시
-        resultList.innerHTML = ''; // 이전 리스트 초기화
-        results.forEach((result, index) => {
-            const resultItem = document.createElement('div');
-            resultItem.className = 'col-lg-3 col-md-4 col-6';
+        // --- FIX: Check if the 'results' array itself is valid ---
+        if (results && results.length > 0) {
+            const resultsTitle = document.createElement('h2');
+            resultsTitle.textContent = 'Search Results';
+            resultsDiv.appendChild(resultsTitle);
             
-            resultItem.innerHTML = `
-                <div class="card h-100 result-card" role="button" title="클릭하여 자세히 보기">
-                    <img src="${result.matched_frame}" class="card-img-top" alt="Result ${index + 1}">
-                    <div class="card-body p-2">
-                        <p class="card-text small mb-0 text-truncate">${result.video_file}</p>
-                        <p class="card-text small text-muted">Time: ${result.timestamp}s | Score: ${result.score}</p>
-                    </div>
-                </div>
-            `;
+            const resultGrid = document.createElement('div');
+            resultGrid.className = 'result-grid';
 
-            // 각 결과 아이템 클릭 시 메인 화면을 해당 결과로 변경
-            resultItem.addEventListener('click', () => {
-                displayMainResult(result, index + 1);
-                resultDiv.scrollIntoView({ behavior: 'smooth' });
+            // --- FIX: Iterate directly over the 'results' array ---
+            results.forEach((res, index) => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+
+                const videoUrl = `http://127.0.0.1:8000/videos/${res.video_id}`;
+
+                const videoElement = document.createElement('video');
+                videoElement.controls = true;
+                videoElement.src = `${videoUrl}#t=${res.timestamp}`; 
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'info';
+                infoDiv.innerHTML = `
+                    <p><strong>Result ${index + 1}</strong></p>
+                    <p><strong>Video:</strong> ${res.video_id}</p>
+                    <p><strong>Time:</strong> ${parseFloat(res.timestamp).toFixed(2)}s | <strong>Score:</strong> ${res.score}</p>
+                `;
+
+                resultItem.appendChild(videoElement);
+                resultItem.appendChild(infoDiv);
+                resultGrid.appendChild(resultItem);
             });
+            resultsDiv.appendChild(resultGrid);
 
-            resultList.appendChild(resultItem);
-        });
+        } else {
+            resultsDiv.innerHTML = '<p>No similar scenes were found.</p>';
+        }
+        // Hide loading indicator
+        document.getElementById('spinner').style.display = 'none'; // Use spinner, not loading
     }
 
     /**
