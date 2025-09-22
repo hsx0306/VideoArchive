@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM 요소 가져오기
     const imageUpload = document.getElementById('imageUpload');
     const searchButton = document.getElementById('searchButton');
     const resultDiv = document.getElementById('result');
@@ -7,24 +6,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const spinner = document.getElementById('spinner');
 
     const queryImage = document.getElementById('queryImage');
-    const queryCanvas = document.getElementById('queryCanvas');
     const resultVideo = document.getElementById('resultVideo');
-    const resultCanvas = document.getElementById('resultCanvas');
     const resultInfo = document.getElementById('resultInfo');
     const mainResultTitle = document.getElementById('main-result-title');
     const resultList = document.getElementById('result-list');
 
     const API_URL = 'http://127.0.0.1:8000';
-    let currentQueryFile = null;
 
-    // 검색 버튼 클릭 이벤트
     searchButton.addEventListener('click', async () => {
         const file = imageUpload.files[0];
         if (!file) {
             alert('검색할 이미지를 선택해주세요.');
             return;
         }
-        currentQueryFile = file;
 
         spinner.style.display = 'inline-block';
         searchButton.disabled = true;
@@ -43,9 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (response.ok && data.success) {
-                // 결과가 배열이고, 비어있지 않은지 확인
                 if (Array.isArray(data.result) && data.result.length > 0) {
-                    displayResults(data.result);
+                    displayResults(data.result, file);
                 } else {
                     showError("유사한 장면을 찾지 못했습니다.");
                 }
@@ -63,134 +56,59 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /**
-     * 검색 결과(배열)를 화면에 표시하는 함수
+     * 검색 결과를 화면에 표시하는 함수
      * @param {Array} results - 백엔드에서 받은 결과 객체 배열
+     * @param {File} queryFile - 사용자가 업로드한 이미지 파일
      */
-    function displayResults(results) { // Changed parameter name for clarity
-        const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = '';
-        resultsDiv.style.display = 'block'; // Make sure the container is visible
+    function displayResults(results, queryFile) {
+        resultDiv.style.display = 'block';
+        resultList.innerHTML = ''; // Clear previous similar scenes
 
-        // --- FIX: Check if the 'results' array itself is valid ---
-        if (results && results.length > 0) {
-            const resultsTitle = document.createElement('h2');
-            resultsTitle.textContent = 'Search Results';
-            resultsDiv.appendChild(resultsTitle);
-            
-            const resultGrid = document.createElement('div');
-            resultGrid.className = 'result-grid';
+        // 1. Display the top result in the main area
+        const topResult = results[0];
+        displayMainResult(topResult, queryFile);
 
-            // --- FIX: Iterate directly over the 'results' array ---
-            results.forEach((res, index) => {
-                const resultItem = document.createElement('div');
-                resultItem.className = 'result-item';
+        // 2. Display other similar scenes
+        if (results.length > 1) {
+            const otherResults = results.slice(1);
+            otherResults.forEach((res, index) => {
+                const videoUrl = `${API_URL}/videos/${res.video_id}#t=${res.timestamp}`;
 
-                const videoUrl = `http://127.0.0.1:8000/videos/${res.video_id}`;
-
-                const videoElement = document.createElement('video');
-                videoElement.controls = true;
-                videoElement.src = `${videoUrl}#t=${res.timestamp}`; 
-
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'info';
-                infoDiv.innerHTML = `
-                    <p><strong>Result ${index + 1}</strong></p>
-                    <p><strong>Video:</strong> ${res.video_id}</p>
-                    <p><strong>Time:</strong> ${parseFloat(res.timestamp).toFixed(2)}s | <strong>Score:</strong> ${res.score}</p>
+                const card = document.createElement('div');
+                card.className = 'col-md-4';
+                card.innerHTML = `
+                    <div class="card result-card">
+                        <video class="card-img-top" controls muted loop src="${videoUrl}"></video>
+                        <div class="card-body">
+                            <h6 class="card-title">유사 장면 #${index + 2}</h6>
+                            <p class="card-text mb-1"><strong>파일:</strong> ${res.video_id}</p>
+                            <p class="card-text"><strong>시간:</strong> ${parseFloat(res.timestamp).toFixed(2)}s | <strong>점수:</strong> ${res.score}</p>
+                        </div>
+                    </div>
                 `;
-
-                resultItem.appendChild(videoElement);
-                resultItem.appendChild(infoDiv);
-                resultGrid.appendChild(resultItem);
+                resultList.appendChild(card);
             });
-            resultsDiv.appendChild(resultGrid);
-
-        } else {
-            resultsDiv.innerHTML = '<p>No similar scenes were found.</p>';
         }
-        // Hide loading indicator
-        document.getElementById('spinner').style.display = 'none'; // Use spinner, not loading
     }
 
     /**
-     * 하나의 결과 객체를 받아 메인 디스플레이 영역을 업데이트하는 함수
-     * @param {object} result - 결과 객체
-     * @param {number} rank - 결과 순위
+     * 메인 검색 결과를 표시하는 함수
+     * @param {object} result - 최상위 결과 객체
+     * @param {File} queryFile - 사용자가 업로드한 이미지 파일
      */
-    function displayMainResult(result, rank) {
-        if (!currentQueryFile) return;
+    function displayMainResult(result, queryFile) {
+        // Display query image
+        queryImage.src = URL.createObjectURL(queryFile);
 
-        // 1. 쿼리 이미지 표시
-        const queryURL = URL.createObjectURL(currentQueryFile);
-        queryImage.src = queryURL;
-
-        // 2. 결과 정보 텍스트 업데이트
-        const { video_file, timestamp, score } = result;
-        mainResultTitle.textContent = `검색된 장면 (Top ${rank})`;
-        resultInfo.innerHTML = `<strong>파일:</strong> ${video_file}<br><strong>시간:</strong> ${timestamp}초 (유사도 점수: ${score})`;
+        // Display result video
+        const { video_id, timestamp, score } = result;
+        mainResultTitle.textContent = '검색된 장면 (Top 1)';
+        resultInfo.innerHTML = `<strong>파일:</strong> ${video_id}<br><strong>시간:</strong> ${parseFloat(timestamp).toFixed(2)}초 (유사도 점수: ${score})`;
         
-        // 3. 결과 비디오 로드 및 시간 이동
-        resultVideo.src = `${API_URL}/videos/${video_file}`;
+        resultVideo.src = `${API_URL}/videos/${video_id}`;
         resultVideo.onloadedmetadata = () => {
             resultVideo.currentTime = parseFloat(timestamp);
         };
-
-        // 4. 이미지와 비디오가 로드된 후 캔버스에 그리기
-        const { query_keypoints, frame_keypoints } = result;
-        let isQueryImageLoaded = false;
-        let isVideoLoaded = false;
-
-        const drawWhenReady = () => {
-            if (isQueryImageLoaded && isVideoLoaded) {
-                drawMatches(queryImage, queryCanvas, resultVideo, resultCanvas, query_keypoints, frame_keypoints);
-            }
-        };
-
-        queryImage.onload = () => {
-            isQueryImageLoaded = true;
-            drawWhenReady();
-        };
-
-        resultVideo.onloadeddata = () => {
-            isVideoLoaded = true;
-            drawWhenReady();
-        };
-
-        resultVideo.onplay = () => { resultCanvas.style.display = 'none'; };
-        resultVideo.onpause = () => { resultCanvas.style.display = 'block'; };
-    }
-
-    function drawMatches(img1, canvas1, vid2, canvas2, points1, points2) {
-        canvas1.width = img1.clientWidth;
-        canvas1.height = img1.clientHeight;
-        canvas2.width = vid2.clientWidth;
-        canvas2.height = vid2.clientHeight;
-
-        const ctx1 = canvas1.getContext('2d');
-        const ctx2 = canvas2.getContext('2d');
-        
-        ctx1.clearRect(0,0,canvas1.width, canvas1.height);
-        ctx2.clearRect(0,0,canvas2.width, canvas2.height);
-
-        drawKeypoints(ctx1, points1, img1.naturalWidth, img1.clientWidth);
-        drawKeypoints(ctx2, points2, vid2.videoWidth, vid2.clientWidth);
-        
-        canvas2.style.display = 'block'; 
-    }
-
-    function drawKeypoints(ctx, keypoints, originalMediaWidth, displayMediaWidth) {
-        const scale = displayMediaWidth / originalMediaWidth;
-        ctx.strokeStyle = 'lime';
-        ctx.lineWidth = 2;
-        ctx.fillStyle = 'red';
-
-        keypoints.forEach(p => {
-            const x = p[0] * scale;
-            const y = p[1] * scale;
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fill();
-        });
     }
 
     function showError(message) {

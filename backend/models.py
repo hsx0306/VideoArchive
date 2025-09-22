@@ -21,10 +21,9 @@ class FeatureExtractor:
 
     def get_embedding(self, img: Image.Image) -> List[float]:
         """Extracts a feature embedding from an image."""
-        # --- FIX: Convert image to RGB to handle different channel formats ---
+        # FIX: Convert image to RGB to handle different channel formats (e.g., RGBA, Grayscale)
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        # --------------------------------------------------------------------
             
         inputs = self.processor(images=img, return_tensors="pt").to(self.device)
         with torch.no_grad():
@@ -38,10 +37,9 @@ class LocalFeatureExtractor:
 
     def get_features(self, image: Image.Image) -> Tuple[Tuple[cv2.KeyPoint, ...], np.ndarray | None]:
         """Extracts local features (keypoints and descriptors) from an image."""
-        # --- FIX: Convert image to RGB before converting to Grayscale ---
+        # FIX: Convert image to RGB before converting to Grayscale
         if image.mode != 'RGB':
             image = image.convert('RGB')
-        # --------------------------------------------------------------
             
         frame_gray = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
         keypoints, descriptors = self.orb.detectAndCompute(frame_gray, None)
