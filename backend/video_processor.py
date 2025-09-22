@@ -59,11 +59,13 @@ def build_index():
     
     indexed_videos = set()
     all_embeddings = []
+    # index_mapping을 딕셔너리가 아닌 리스트로 사용
     index_mapping = []
     
     if os.path.exists(MAPPING_PATH) and os.path.exists(INDEX_PATH):
         print("📖 기존 인덱스 파일을 읽어옵니다...")
         with open(MAPPING_PATH, 'r', encoding='utf-8') as f:
+            # 리스트로 로드
             index_mapping = json.load(f)
         for item in index_mapping:
             indexed_videos.add(item['id'])
@@ -82,6 +84,9 @@ def build_index():
     feature_extractor = FeatureExtractor()
     new_embeddings = []
     
+    # 새로운 데이터를 추가할 임시 리스트
+    new_mapping_items = []
+
     for video_file in videos_to_process:
         video_path = os.path.join(VIDEO_DIR, video_file)
         
@@ -89,9 +94,6 @@ def build_index():
             video = open_video(video_path)
             scene_manager = SceneManager()
             
-            # --- [조절 가능] 장면 감지 민감도 설정 (threshold) ---
-            # 값이 낮을수록 더 많은 장면을 감지합니다. (예: 20.0)
-            # 값이 높을수록 더 적은 장면을 감지합니다. (예: 30.0)
             scene_manager.add_detector(ContentDetector(threshold=27.0))
             
             scene_manager.detect_scenes(video, show_progress=False)
@@ -115,7 +117,8 @@ def build_index():
                     pil_image = Image.fromarray(frame_rgb).resize(RESIZE_DIM)
                     embedding = feature_extractor.get_embedding(pil_image)
                     new_embeddings.append(embedding)
-                    index_mapping.append({
+                    # 리스트에 딕셔너리 추가
+                    new_mapping_items.append({
                         "id": video_file,
                         "timestamp": f"{middle_timestamp_sec:.2f}"
                     })
@@ -125,7 +128,6 @@ def build_index():
             print(f"오류: '{video_file}' 처리 중 예외 발생 - {e}")
             continue
 
-    # --- [피드백 추가] 모든 영상 처리 후 다음 단계 진행 상황을 알림 ---
     print("\n✅ 모든 비디오의 장면 처리가 완료되었습니다. 인덱스 생성을 시작합니다...")
 
     if not new_embeddings:
@@ -133,6 +135,9 @@ def build_index():
         return
         
     all_embeddings.extend(new_embeddings)
+    # 기존 매핑 데이터와 새로운 매핑 데이터를 합침
+    index_mapping.extend(new_mapping_items)
+
     embeddings_np = np.array(all_embeddings).astype('float32')
     dimension = embeddings_np.shape[1]
     
@@ -141,6 +146,7 @@ def build_index():
     
     faiss.write_index(index, INDEX_PATH)
     
+    # 최종 매핑 리스트를 파일에 저장
     with open(MAPPING_PATH, 'w', encoding='utf-8') as f:
         json.dump(index_mapping, f, ensure_ascii=False, indent=4)
         
